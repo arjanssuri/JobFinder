@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background: linear-gradient(to bottom, hsl(240, 10%, 3.9%), hsl(240, 15%, 2%));
+    background-attachment: fixed;
+  }
+}
+
+/* Sticky scroll for How It Works section */
+.sticky-container {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  position: relative;
+}
+
+.sticky-container::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(6, 182, 212, 0.3) 20%,
+    rgba(6, 182, 212, 0.3) 80%,
+    transparent
+  );
+  z-index: 0;
+  transform: translateX(-50%);
+}
+
+.sticky-section {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 2rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.sticky-section .rounded-full {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+@media (max-width: 768px) {
+  .sticky-section {
+    scroll-snap-align: none;
+    height: auto;
+    min-height: 80vh;
+  }
+
+  .sticky-container::after {
+    display: none;
+  }
+}
+
+/* Add glow effects to cyan elements */
+.text-cyan-400 {
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
+.bg-cyan-500 {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+}
