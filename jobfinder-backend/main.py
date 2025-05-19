@@ -9,8 +9,10 @@ from dotenv import load_dotenv
 # Import our modules
 from database import (
     initialize_database, 
-    get_jobs, 
     update_user_preferences, 
+    save_job_for_user,
+    unsave_job_for_user,
+    get_saved_jobs,
     create_user as db_create_user,
     get_user_by_email,
     update_last_login
@@ -25,6 +27,8 @@ from auth import (
     create_access_token, 
     get_current_user
 )
+# Import our Indeed scraper
+from indeed_scraper import search_jobs as indeed_search_jobs, SEARCH_TERM_DICT
 
 # Load environment variables
 load_dotenv()
@@ -47,14 +51,22 @@ app.add_middleware(
 # Models
 class SearchParams(BaseModel):
     keywords: Optional[str] = None
+    role: Optional[str] = None
     location: Optional[str] = None
     job_type: Optional[str] = None
     experience_level: Optional[str] = None
-    
+    min_salary: Optional[int] = None
+    remote_only: Optional[bool] = False
+    recent_only: Optional[bool] = False
+    categories: Optional[List[str]] = None
+
 class UserPreferences(BaseModel):
     email_notifications: Optional[bool] = None
     saved_searches: Optional[List[Dict[str, Any]]] = None
     preferred_job_types: Optional[List[str]] = None
+
+class SaveJobRequest(BaseModel):
+    job_id: int
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -133,42 +145,147 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 # Job endpoints
 @app.get("/api/jobs")
 async def get_jobs_endpoint(
-    keywords: Optional[str] = None, 
+    keywords: Optional[str] = None,
+    role: Optional[str] = None,
     location: Optional[str] = None,
     job_type: Optional[str] = None,
-    experience_level: Optional[str] = None
+    experience_level: Optional[str] = None,
+    min_salary: Optional[int] = None,
+    remote_only: Optional[bool] = False,
+    recent_only: Optional[bool] = False,
+    categories: Optional[str] = None
 ):
     """
-    Retrieve matching jobs based on query parameters
+    Retrieve matching jobs from Indeed
     """
-    filters = {}
-    
+    # Process search keywords
+    search_keywords = []
     if keywords:
-        filters["keywords"] = keywords
+        search_keywords.extend(keywords.split())
+    if role:
+        search_keywords.extend(role.split())
     
-    if location:
-        filters["location"] = location
+    # Process categories
+    search_categories = []
+    if categories:
+        search_categories = categories.split(',')
     
-    if job_type:
-        filters["job_type"] = job_type
+    # Add remote category if specified
+    if remote_only:
+        search_categories.append("remote")
     
+    # Add experience level category if specified
     if experience_level:
-        filters["experience_level"] = experience_level
+        if experience_level.lower() in ["junior", "entry-level", "entry level"]:
+            search_categories.append("entry_level")
+        elif experience_level.lower() in ["senior", "expert"]:
+            search_categories.append("senior")
     
-    # Call database function to get jobs
-    jobs = get_jobs(filters)
+    # Call Indeed scraper
+    jobs = indeed_search_jobs(
+        keywords=search_keywords,
+        location=location, 
+        categories=search_categories,
+        limit=25
+    )
+    
+    # Apply filters that Indeed API doesn't support
+    if job_type or min_salary:
+        filtered_jobs = []
+        for job in jobs:
+            # Filter by job type if specified
+            if job_type and job.get("job_type") != job_type:
+                continue
+            
+            # Filter by minimum salary if specified
+            if min_salary:
+                # Extract minimum salary from range
+                salary_range = job.get("salary_range", "")
+                try:
+                    min_salary_str = salary_range.split("-")[0].strip()
+                    min_salary_value = int(min_salary_str.replace("$", "").replace(",", ""))
+                    if min_salary_value < min_salary * 1000:
+                        continue
+                except (ValueError, IndexError):
+                    # Skip this job if we can't parse the salary
+                    pass
+            
+            filtered_jobs.append(job)
+        
+        return filtered_jobs
     
     return jobs
 
 @app.post("/api/search")
 async def submit_search(search_params: SearchParams):
     """
-    Submit search parameters and return matching jobs
+    Submit search parameters and return matching jobs from Indeed
     """
-    filters = search_params.dict(exclude_none=True)
-    jobs = get_jobs(filters)
+    # Process search keywords
+    search_keywords = []
+    if search_params.keywords:
+        search_keywords.extend(search_params.keywords.split())
+    if search_params.role:
+        search_keywords.extend(search_params.role.split())
+    
+    # Process categories
+    search_categories = search_params.categories or []
+    
+    # Add remote category if specified
+    if search_params.remote_only:
+        search_categories.append("remote")
+    
+    # Add experience level category if specified
+    if search_params.experience_level:
+        if search_params.experience_level.lower() in ["junior", "entry-level", "entry level"]:
+            search_categories.append("entry_level")
+        elif search_params.experience_level.lower() in ["senior", "expert"]:
+            search_categories.append("senior")
+    
+    # Call Indeed scraper
+    jobs = indeed_search_jobs(
+        keywords=search_keywords,
+        location=search_params.location, 
+        categories=search_categories,
+        limit=25
+    )
+    
+    # Apply filters that Indeed API doesn't support
+    if search_params.job_type or search_params.min_salary:
+        filtered_jobs = []
+        for job in jobs:
+            # Filter by job type if specified
+            if search_params.job_type and job.get("job_type") != search_params.job_type:
+                continue
+            
+            # Filter by minimum salary if specified
+            if search_params.min_salary:
+                # Extract minimum salary from range
+                salary_range = job.get("salary_range", "")
+                try:
+                    min_salary_str = salary_range.split("-")[0].strip()
+                    min_salary_value = int(min_salary_str.replace("$", "").replace(",", ""))
+                    if min_salary_value < search_params.min_salary * 1000:
+                        continue
+                except (ValueError, IndexError):
+                    # Skip this job if we can't parse the salary
+                    pass
+            
+            filtered_jobs.append(job)
+        
+        return filtered_jobs
     
     return jobs
+
+@app.get("/api/categories")
+async def get_categories():
+    """
+    Get available search categories
+    """
+    return {
+        "categories": list(SEARCH_TERM_DICT.keys()),
+        "term_details": SEARCH_TERM_DICT
+    }
 
 # User preferences endpoint
 @app.get("/api/preferences")
@@ -200,6 +317,56 @@ async def update_preferences(
         "message": "Preferences updated", 
         "data": updated_prefs
     }
+
+# Saved Jobs endpoints
+@app.post("/api/jobs/save")
+async def save_job(job_request: SaveJobRequest, current_user = Depends(get_current_user)):
+    """
+    Save a job for the current user (requires authentication)
+    """
+    user_id = int(current_user.user_id)
+    job_id = job_request.job_id
+    
+    saved_job = save_job_for_user(user_id, job_id)
+    
+    return {
+        "status": "success",
+        "message": "Job saved successfully",
+        "data": saved_job
+    }
+
+@app.delete("/api/jobs/save/{job_id}")
+async def unsave_job(job_id: int, current_user = Depends(get_current_user)):
+    """
+    Remove a job from user's saved jobs (requires authentication)
+    """
+    user_id = int(current_user.user_id)
+    
+    result = unsave_job_for_user(user_id, job_id)
+    
+    if result["removed"]:
+        return {
+            "status": "success",
+            "message": "Job removed from saved jobs",
+            "data": result
+        }
+    else:
+        return {
+            "status": "error",
+            "message": "Job was not saved",
+            "data": result
+        }
+
+@app.get("/api/jobs/saved")
+async def get_user_saved_jobs(current_user = Depends(get_current_user)):
+    """
+    Get all jobs saved by the current user (requires authentication)
+    """
+    user_id = int(current_user.user_id)
+    
+    jobs = get_saved_jobs(user_id)
+    
+    return jobs
 
 @app.get("/")
 async def root():
