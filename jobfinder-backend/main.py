@@ -5,6 +5,11 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr
 import os
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Import our modules
 from database import (
@@ -181,6 +186,9 @@ async def get_jobs_endpoint(
         elif experience_level.lower() in ["senior", "expert"]:
             search_categories.append("senior")
     
+    # Log the search request
+    logger.info(f"Searching jobs with: keywords={search_keywords}, location={location}, categories={search_categories}")
+    
     # Call Indeed scraper
     jobs = indeed_search_jobs(
         keywords=search_keywords,
@@ -189,7 +197,7 @@ async def get_jobs_endpoint(
         limit=25
     )
     
-    # Apply filters that Indeed API doesn't support
+    # Apply filters
     if job_type or min_salary:
         filtered_jobs = []
         for job in jobs:
@@ -242,6 +250,9 @@ async def submit_search(search_params: SearchParams):
         elif search_params.experience_level.lower() in ["senior", "expert"]:
             search_categories.append("senior")
     
+    # Log the search request
+    logger.info(f"API search with: keywords={search_keywords}, location={search_params.location}, categories={search_categories}")
+    
     # Call Indeed scraper
     jobs = indeed_search_jobs(
         keywords=search_keywords,
@@ -250,7 +261,7 @@ async def submit_search(search_params: SearchParams):
         limit=25
     )
     
-    # Apply filters that Indeed API doesn't support
+    # Apply filters
     if search_params.job_type or search_params.min_salary:
         filtered_jobs = []
         for job in jobs:

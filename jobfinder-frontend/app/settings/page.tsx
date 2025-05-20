@@ -40,7 +40,7 @@ export default function SettingsPage() {
       
       if (response.ok) {
         const data = await response.json()
-        
+
         // Update state if we have settings
         if (data) {
           setNotificationSettings({
@@ -53,7 +53,7 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Error fetching user settings:', error)
-    }
+  }
   }
   
   // Handle switch changes
@@ -74,8 +74,8 @@ export default function SettingsPage() {
         new_job_alerts: notificationSettings.newJobs,
         application_updates: notificationSettings.applicationUpdates,
         marketing_emails: notificationSettings.marketingEmails
-      }
-      
+  }
+
       const response = await fetchWithAuth('/api/preferences', {
         method: 'PUT',
         headers: {
@@ -86,8 +86,8 @@ export default function SettingsPage() {
       
       if (!response.ok) {
         throw new Error('Failed to save settings')
-      }
-      
+  }
+
       toast({
         title: "Settings saved",
         description: "Your notification settings have been updated",
